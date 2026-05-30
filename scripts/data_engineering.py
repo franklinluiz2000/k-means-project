@@ -1,20 +1,45 @@
+import os
+import gzip
 import numpy as np
-import tensorflow as tf  # Ou use o 'keras' para obter o dataset
+import urllib.request
 
-print("Baixando Fashion MNIST...")
-(x_train, _), (x_test, _) = tf.keras.datasets.fashion_mnist.load_data()
+print("=== Engenharia de Dados: Baixando Fashion MNIST (Modo Leve HPC) ===")
 
-# Junta os dados de treino (60k) e teste (10k) para ter o dataset completo (70.000 imagens)
-dataset_completo = np.concatenate((x_train, x_test), axis=0)
+# URLs oficiais dos arquivos compactados no GitHub do Fashion MNIST
+base_url = 'http://fashion-mnist.s3-website.eu-central-1.amazonaws.com/'
+files = {
+    'train_img': 'train-images-idx3-ubyte.gz',
+    'test_img': 't10k-images-idx3-ubyte.gz'
+}
 
-# Cada imagem é 28x28 (784 pixels). Vamos achatar para um vetor de 784 posições
-dataset_plano = dataset_completo.reshape(-1, 28 * 28)
+# Cria a pasta data se não existir
+os.makedirs('data', exist_ok=True)
 
-# Normaliza os dados para float64 (double em C) entre 0.0 e 1.0 (padrão para algoritmos de distância)
-dataset_normalizado = dataset_plano.astype(np.float64) / 255.0
+def load_mnist_images(filename):
+    filepath = os.path.join('data', filename)
+    if not os.path.exists(filepath):
+        print(f"Baixando {filename}...")
+        urllib.request.urlretrieve(base_url + filename, filepath)
 
-print(importante := f"Formato final do dataset: {dataset_normalizado.shape}") # Deve ser (70000, 784)
+    with gzip.open(filepath, 'rb') as f:
+        # Os primeiros 16 bytes são metadados do arquivo IDX
+        data = np.frombuffer(f.read(), np.uint8, offset=16)
+    # Redimensiona para o número de imagens (cada uma tem 28x28 = 784 pixels)
+    return data.reshape(-1, 28 * 28)
 
-# Salva tudo em um arquivo binário bruto
-dataset_normalizado.tofile("fashion_mnist_pure.bin")
-print("Arquivo 'fashion_mnist_pure.bin' gerado com sucesso!")
+# Baixa e carrega os blocos de treino e teste
+train_images = load_mnist_images(files['train_img'])
+test_images = load_mnist_images(files['test_img'])
+
+# Consolida o dataset completo (70.000 amostras, 784 features)
+dataset_completo = np.concatenate((train_images, test_images), axis=0)
+
+# Normaliza para float64 (double em C) entre 0.0 e 1.0
+dataset_normalizado = dataset_completo.astype(np.float64) / 255.0
+
+print(f"Formato final do dataset: {dataset_normalizado.shape}")
+
+output_path = os.path.join('data', 'fashion_mnist_pure.bin')
+dataset_normalizado.tofile(output_path)
+
+print(f"Sucesso! Arquivo '{output_path}' gerado com sucesso!")
