@@ -41,9 +41,8 @@ int main(int argc, char **argv) {
         return EXIT_FAILURE;
     }
 
-    // --- CARREGAMENTO DO DATASET REAL (Sua parte independente) ---
     printf("Carregando dados do arquivo binário...\n");
-    FILE *file = fopen("fashion_mnist_pure.bin", "rb");
+    FILE *file = fopen("data/fashion_mnist_pure.bin", "rb");
     if (!file) {
         fprintf(stderr, "Erro: O arquivo 'fashion_mnist_pure.bin' não foi encontrado!\n");
         fprintf(stderr, "Execute o script Python primeiro para gerar o arquivo.\n");
