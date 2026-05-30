@@ -53,3 +53,16 @@ dkms.conf
 
 # debug information files
 *.dwo
+
+# Ignorar dados pesados e datasets
+data/
+*.bin
+
+# Ignorar executáveis e binários compilados
+src/sequential/kmeans_sequential
+src/mpi_openmp/kmeans_hybrid
+src/openmp_gpu/kmeans_omp_gpu
+src/cuda/kmeans_cuda
+
+# Ignorar ambiente virtual do python
+.venv/
