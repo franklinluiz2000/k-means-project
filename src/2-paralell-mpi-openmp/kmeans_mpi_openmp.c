@@ -45,12 +45,12 @@ int main(int argc, char **argv) {
         dataset = (double *)malloc(num_samples * num_features * sizeof(double));
         
         // Simulação da leitura do binário gerado pelo Python
-        FILE *f = fopen("fashion_mnist.bin", "rb");
+        FILE *f = fopen("data/fashion_mnist_pure.bin", "rb");
         if (f) {
             fread(dataset, sizeof(double), num_samples * num_features, f);
             fclose(f);
         } else {
-            printf("Aviso: fashion_mnist.bin não encontrado. Preenchendo com dados aleatórios.\n");
+            printf("Aviso: data/fashion_mnist_pure.bin não encontrado. Preenchendo com dados aleatórios.\n");
             for (int i = 0; i < num_samples * num_features; i++) dataset[i] = (double)rand() / RAND_MAX;
         }
 

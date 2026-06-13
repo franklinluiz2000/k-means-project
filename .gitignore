@@ -55,6 +55,7 @@ dkms.conf
 *.dwo
 
 # Ignorar dados pesados e datasets
+docs/
 data/
 *.bin
 
@@ -66,3 +67,18 @@ src/cuda/kmeans_cuda
 
 # Ignorar ambiente virtual do python
 .venv/
+
+# SLURM outputs (gerados no cluster)
+results/raw/*.out
+results/csv/*.csv
+results/figures/*.png
+results/figures/*.pdf
+
+# Binarios compilados no root (temporarios de benchmark)
+kmeans_seq
+kmeans_mpi_omp
+kmeans_omp_gpu
+kmeans_cuda
+
+# Arquivos .gz baixados pelo data_engineering.py
+data/*.gz
