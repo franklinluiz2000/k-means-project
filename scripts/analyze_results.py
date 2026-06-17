@@ -249,6 +249,82 @@ def plot_weak_scaling() -> None:
     print(f"  Salvo: {path}")
 
 
+def plot_comprehensive_comparison() -> None:
+    csv_gpu = os.path.join(CSV_DIR, 'gpu_comprehensive.csv')
+    csv_mpi = os.path.join(CSV_DIR, 'mpi_comprehensive.csv')
+    
+    dfs = []
+    if os.path.exists(csv_gpu):
+        dfs.append(pd.read_csv(csv_gpu))
+    if os.path.exists(csv_mpi):
+        dfs.append(pd.read_csv(csv_mpi))
+        
+    if not dfs:
+        print("  SKIP: Nenhum CSV abrangente encontrado.")
+        return
+        
+    df = pd.concat(dfs, ignore_index=True)
+    df = df[df['time_seconds'] != 'NA']
+    df['time_seconds'] = df['time_seconds'].astype(float)
+    df['samples'] = df['samples'].astype(int)
+
+    stats = df.groupby(['version', 'samples'])['time_seconds'].agg(['mean', 'std']).reset_index()
+    
+    # 1. Gráfico Absoluto (Tempo vs Samples)
+    fig, ax = plt.subplots(figsize=(12, 7))
+    versions = stats['version'].unique()
+    colors = {'sequential': '#3498db', 'cuda': '#e74c3c', 'mpi_openmp_64': '#2ecc71'}
+    markers = {'sequential': 'o', 'cuda': 'D', 'mpi_openmp_64': 's'}
+    labels = {'sequential': 'Sequencial (1 CPU)', 'cuda': 'CUDA (1 GPU V100)', 'mpi_openmp_64': 'MPI+OpenMP (64 CPUs)'}
+    
+    for v in versions:
+        sub = stats[stats['version'] == v].sort_values('samples')
+        ax.plot(sub['samples'], sub['mean'], marker=markers.get(v, 'o'), color=colors.get(v, 'k'), 
+                linewidth=2, markersize=8, label=labels.get(v, v))
+                
+    ax.set_xscale('log')
+    ax.set_yscale('log')
+    ax.set_xlabel('Tamanho do Dataset (Num. Amostras)')
+    ax.set_ylabel('Tempo (segundos) - Log Scale')
+    ax.set_title('Comparação Absoluta - Tempo de Execução vs Tamanho dos Dados')
+    ax.legend()
+    plt.tight_layout()
+    path = os.path.join(FIG_DIR, 'comprehensive_time.png')
+    plt.savefig(path, dpi=150)
+    plt.close()
+    print(f"  Salvo: {path}")
+
+    # 2. Gráfico de Speedup (Em relação ao Sequencial)
+    seq_stats = stats[stats['version'] == 'sequential'].set_index('samples')['mean']
+    if not seq_stats.empty:
+        fig, ax = plt.subplots(figsize=(12, 7))
+        for v in versions:
+            if v == 'sequential': continue
+            sub = stats[stats['version'] == v].sort_values('samples')
+            speedup = []
+            for _, row in sub.iterrows():
+                if row['samples'] in seq_stats.index:
+                    speedup.append(seq_stats[row['samples']] / row['mean'])
+                else:
+                    speedup.append(np.nan)
+            
+            ax.plot(sub['samples'], speedup, marker=markers.get(v, 'o'), color=colors.get(v, 'k'),
+                    linewidth=2, markersize=8, label=labels.get(v, v))
+                    
+        ax.set_xscale('log')
+        ax.axhline(y=1, color='#95a5a6', linestyle='--', linewidth=1, label='Baseline Sequencial (1x)')
+        ax.set_xlabel('Tamanho do Dataset (Num. Amostras)')
+        ax.set_ylabel('Speedup (vezes mais rápido)')
+        ax.set_title('Speedup vs Tamanho dos Dados (Baseline: Sequencial)')
+        ax.legend()
+        plt.tight_layout()
+        path = os.path.join(FIG_DIR, 'comprehensive_speedup.png')
+        plt.savefig(path, dpi=150)
+        plt.close()
+        print(f"  Salvo: {path}")
+
+
+
 def generate_summary_table() -> None:
     csv_path = os.path.join(CSV_DIR, 'benchmark_results.csv')
     if not os.path.exists(csv_path):
@@ -290,6 +366,9 @@ def main() -> None:
 
     print("\n4. Escalabilidade fraca:")
     plot_weak_scaling()
+
+    print("\n5. Benchmark Compreensivo (MPI vs CUDA vs Seq):")
+    plot_comprehensive_comparison()
 
     print("\n=== Analise concluida ===")
     print(f"Graficos salvos em: {FIG_DIR}")

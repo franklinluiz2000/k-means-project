@@ -5,7 +5,8 @@
 # Uso: bash scripts/test_correctness.sh
 #
 #SBATCH --job-name=Kmeans_Correctness
-#SBATCH --partition=amd-512
+#SBATCH --partition=gpu-8-v100
+#SBATCH --gpus-per-node=1
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
@@ -67,7 +68,7 @@ if command -v mpicc &>/dev/null; then
     mpicc src/2-paralell-mpi-openmp/kmeans_mpi_openmp.c -o kmeans_mpi_omp -lm -O3 -fopenmp
     if [ $? -eq 0 ]; then
         export OMP_NUM_THREADS=${SLURM_CPUS_PER_TASK:-4}
-        MPI_OUTPUT=$(mpirun -np ${SLURM_NTASKS:-2} ./kmeans_mpi_omp 2>&1)
+        MPI_OUTPUT=$(mpirun -np ${SLURM_NTASKS:-2} ./kmeans_mpi_omp 70000 data/fashion_mnist_pure.bin 2>&1)
         check_result "MPI+OpenMP" "$MPI_OUTPUT" "$SEQ_ITERS"
         rm -f kmeans_mpi_omp
     else
@@ -104,7 +105,7 @@ echo ""
 echo ">>> Testando CUDA..."
 SRC_CUDA="src/4-cuda/kmeans_cuda.cu"
 if [ -f "$SRC_CUDA" ]; then
-    module load cuda 2>/dev/null || true
+    module load compilers/nvidia/cuda/12.6 2>/dev/null || true
     if command -v nvcc &>/dev/null; then
         nvcc "$SRC_CUDA" -o kmeans_cuda -O3
         if [ $? -eq 0 ]; then

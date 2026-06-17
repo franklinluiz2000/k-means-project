@@ -17,7 +17,7 @@ echo "GPU: $CUDA_VISIBLE_DEVICES"
 echo "Data: $(date)"
 echo ""
 
-module load cuda 2>/dev/null || true
+module load compilers/nvidia/cuda/12.6 2>/dev/null || true
 
 nvcc src/4-cuda/kmeans_cuda.cu -o kmeans_cuda -O3
 

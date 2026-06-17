@@ -41,9 +41,10 @@ echo ""
 # o num_samples via argumento de linha de comando.
 # Por ora, testamos apenas com o dataset padrao de 70k.
 CONFIGS=(
-    "1 data/fashion_mnist_pure.bin 70000"
-    "2 data/fashion_mnist_pure.bin 70000"
+    "1 data/fashion_mnist_17.5k.bin 17500"
+    "2 data/fashion_mnist_35k.bin 35000"
     "4 data/fashion_mnist_pure.bin 70000"
+    "8 data/fashion_mnist_140k.bin 140000"
 )
 
 echo ">>> Compilando MPI+OpenMP..."
@@ -76,7 +77,7 @@ for cfg in "${CONFIGS[@]}"; do
 
     for r in $(seq 1 $RUNS); do
         TMPOUT=$(mktemp)
-        mpirun -np "$TASKS" ./kmeans_mpi_omp > "$TMPOUT" 2>&1
+        mpirun --bind-to none -np "$TASKS" ./kmeans_mpi_omp "$SAMPLES" "$DATASET" > "$TMPOUT" 2>&1
         T=$(extract_time "$TMPOUT")
         IT=$(extract_iters "$TMPOUT")
         echo "$TASKS,$SAMPLES,$SAMPLES_PER_TASK,$r,$T,$IT" >> "$CSV"

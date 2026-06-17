@@ -89,7 +89,7 @@ for cfg in "${CONFIGS[@]}"; do
 
     for r in $(seq 1 $RUNS); do
         TMPOUT=$(mktemp)
-        mpirun -np "$TOTAL_TASKS" ./kmeans_mpi_omp > "$TMPOUT" 2>&1
+        mpirun --bind-to none -np "$TOTAL_TASKS" ./kmeans_mpi_omp 70000 data/fashion_mnist_pure.bin > "$TMPOUT" 2>&1
         T=$(extract_time "$TMPOUT")
         IT=$(extract_iters "$TMPOUT")
         echo "$NODES,$TOTAL_TASKS,$THREADS,$TOTAL_PROCS,$r,$T,$IT" >> "$CSV"

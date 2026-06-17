@@ -4,7 +4,8 @@
 # Uso local (sequencial apenas): bash scripts/run_benchmarks.sh
 #
 #SBATCH --job-name=Kmeans_Bench
-#SBATCH --partition=amd-512
+#SBATCH --partition=gpu-8-v100
+#SBATCH --gpus-per-node=1
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
@@ -60,7 +61,7 @@ if command -v mpicc &>/dev/null; then
         for i in $(seq 1 $RUNS); do
             echo "  MPI+OpenMP - execucao $i/$RUNS (${NTASKS} tasks, ${OMP_NUM_THREADS} threads)"
             TMPOUT=$(mktemp)
-            mpirun -np "$NTASKS" ./kmeans_mpi_omp > "$TMPOUT" 2>&1
+            mpirun -np "$NTASKS" ./kmeans_mpi_omp 70000 data/fashion_mnist_pure.bin > "$TMPOUT" 2>&1
             T=$(extract_time "$TMPOUT")
             IT=$(extract_iters "$TMPOUT")
             echo "mpi_openmp,$i,$T,$IT" >> "$CSV"
@@ -104,7 +105,7 @@ echo ""
 echo ">>> Compilando versao CUDA..."
 SRC_CUDA="src/4-cuda/kmeans_cuda.cu"
 if [ -f "$SRC_CUDA" ]; then
-    module load cuda 2>/dev/null || true
+    module load compilers/nvidia/cuda/12.6 2>/dev/null || true
     if command -v nvcc &>/dev/null; then
         nvcc "$SRC_CUDA" -o kmeans_cuda -O3
         if [ $? -eq 0 ]; then

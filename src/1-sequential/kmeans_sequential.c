@@ -22,13 +22,20 @@ void initialize_centroids(const double *dataset, double *centroids, int K, int n
 }
 
 int main(int argc, char **argv) {
-    // Dimensões exatas do Fashion MNIST unificado
     int num_samples = 70000; 
     int num_features = 784;     
-    int K = 10; // 10 classes de roupas existentes no dataset
+    int K = 10; 
+    char dataset_path[256] = "data/fashion_mnist_pure.bin";
+
+    if (argc >= 2) {
+        num_samples = atoi(argv[1]);
+    }
+    if (argc >= 3) {
+        snprintf(dataset_path, sizeof(dataset_path), "%s", argv[2]);
+    }
 
     printf("=== HPC K-means Sequencial (Baseline) ===\n");
-    printf("Dataset: Fashion MNIST Real\n");
+    printf("Dataset: %s\n", dataset_path);
     printf("Configuração: %d amostras, %d dimensões, K=%d\n\n", num_samples, num_features, K);
 
     // Alocação de Memória
@@ -42,10 +49,9 @@ int main(int argc, char **argv) {
     }
 
     printf("Carregando dados do arquivo binário...\n");
-    FILE *file = fopen("data/fashion_mnist_pure.bin", "rb");
+    FILE *file = fopen(dataset_path, "rb");
     if (!file) {
-        fprintf(stderr, "Erro: O arquivo 'fashion_mnist_pure.bin' não foi encontrado!\n");
-        fprintf(stderr, "Execute o script Python primeiro para gerar o arquivo.\n");
+        fprintf(stderr, "Erro: O arquivo '%s' não foi encontrado!\n", dataset_path);
         free(dataset); free(centroids); free(assignments);
         return EXIT_FAILURE;
     }
@@ -135,6 +141,13 @@ int main(int argc, char **argv) {
     printf("Processamento concluído!\n");
     printf("Iterações necessárias: %d\n", iter);
     printf("Tempo total de processamento do K-means: %.6f segundos\n", end_time - start_time);
+
+    // Salvar centroides para visualização
+    FILE *out_file = fopen("results/raw/centroids_sequential.bin", "wb");
+    if (out_file) {
+        fwrite(centroids, sizeof(double), K * num_features, out_file);
+        fclose(out_file);
+    }
 
     // Liberação de Memória
     free(dataset); free(centroids); free(assignments);

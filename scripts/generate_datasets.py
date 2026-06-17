@@ -19,6 +19,7 @@ BASE_SAMPLES = 70000
 DATASETS = {
     'fashion_mnist_7k.bin': 7000,
     'fashion_mnist_14k.bin': 14000,
+    'fashion_mnist_17.5k.bin': 17500,
     'fashion_mnist_35k.bin': 35000,
     'fashion_mnist_140k.bin': 140000,
     'fashion_mnist_280k.bin': 280000,

@@ -24,10 +24,18 @@ int main(int argc, char **argv) {
     int num_samples = 70000;
     int num_features = 784;
     int K = 10;
+    char dataset_path[256] = "data/fashion_mnist_pure.bin";
+
+    if (argc >= 2) {
+        num_samples = atoi(argv[1]);
+    }
+    if (argc >= 3) {
+        snprintf(dataset_path, sizeof(dataset_path), "%s", argv[2]);
+    }
 
     // Validação para garantir fatias iguais
     if (num_samples % size != 0) {
-        if (rank == 0) printf("Erro: 70000 deve ser divisível pelo número de processos MPI.\n");
+        if (rank == 0) printf("Erro: %d amostras deve ser divisível pelo número de processos MPI (%d).\n", num_samples, size);
         MPI_Finalize();
         return 1;
     }
@@ -41,16 +49,17 @@ int main(int argc, char **argv) {
     if (rank == 0) {
         printf("=== HPC K-means Híbrido (MPI + OpenMP) ===\n");
         printf("Configuração: %d amostras, %d dimensões, K=%d\n", num_samples, num_features, K);
+        printf("Dataset: %s\n", dataset_path);
         
         dataset = (double *)malloc(num_samples * num_features * sizeof(double));
         
-        // Simulação da leitura do binário gerado pelo Python
-        FILE *f = fopen("data/fashion_mnist_pure.bin", "rb");
+        // Leitura do binário
+        FILE *f = fopen(dataset_path, "rb");
         if (f) {
-            fread(dataset, sizeof(double), num_samples * num_features, f);
+            fread(dataset, sizeof(double), (size_t)num_samples * num_features, f);
             fclose(f);
         } else {
-            printf("Aviso: data/fashion_mnist_pure.bin não encontrado. Preenchendo com dados aleatórios.\n");
+            printf("Aviso: %s não encontrado. Preenchendo com dados aleatórios.\n", dataset_path);
             for (int i = 0; i < num_samples * num_features; i++) dataset[i] = (double)rand() / RAND_MAX;
         }
 
@@ -150,8 +159,16 @@ int main(int argc, char **argv) {
     double end_time = MPI_Wtime();
 
     if (rank == 0) {
-        printf("Processamento Híbrido concluído em %d iterações.\n", iter);
-        printf("Tempo total de processamento: %.6f segundos\n", end_time - start_time);
+        printf("Processamento concluído!\n");
+        printf("Iterações necessárias: %d\n", iter);
+        printf("Tempo total de processamento do K-means: %.6f segundos\n", end_time - start_time);
+        
+        FILE *out_file = fopen("results/raw/centroids_mpi.bin", "wb");
+        if (out_file) {
+            fwrite(centroids, sizeof(double), K * num_features, out_file);
+            fclose(out_file);
+        }
+        
         free(dataset);
     }
 
