@@ -92,3 +92,38 @@ python3 scripts/analyze_results.py
 * Eficiência
 * Escalabilidade Forte e Fraca
 * Overhead de comunicação e transferência CPU-GPU
+
+## Escalabilidade Forte e Fraca
+
+Status de geração dos resultados de escalabilidade por versão. Marcado = resultado já gerado.
+
+| Versão | Escalabilidade Forte | Escalabilidade Fraca | Observação |
+|--------|:--------------------:|:--------------------:|------------|
+| 1 — Sequencial | ⬜ | ⬜ | Baseline (1 core) — serve de referência para speedup; não escala |
+| 2 — MPI + OpenMP | ⬜ | ⬜ | Estudo principal: varia nº de processos (MPI) e threads (OpenMP) |
+| 3 — OpenMP-GPU | ⬜ | ⬜ | Escalabilidade por tamanho de entrada; depende da implementação |
+| 4 — CUDA | ⬜ | ⬜ | Escalabilidade por tamanho de entrada |
+
+## Checklist para Entrega Final
+
+### Implementações
+- [x] Versão 1 — Sequencial (baseline)
+- [x] Versão 2 — MPI + OpenMP
+- [ ] Versão 3 — OpenMP-GPU (offloading)
+- [x] Versão 4 — CUDA
+
+### Experimentos (conforme enunciado)
+- [ ] Escalabilidade forte — MPI + OpenMP
+- [ ] Escalabilidade fraca — MPI + OpenMP
+- [ ] Diferentes tamanhos de entrada na v2, variando nº de processos (MPI) e nº de threads (OpenMP)
+- [ ] Comparação de desempenho OpenMP-GPU vs CUDA
+
+### Métricas (para cada experimento)
+- [ ] Tempo de execução
+- [ ] Speedup
+- [ ] Eficiência
+
+### Discussão exigida no relatório
+- [ ] Overhead de comunicação no MPI
+- [ ] Balanceamento de carga
+- [ ] Impacto da transferência de dados entre CPU e GPU
