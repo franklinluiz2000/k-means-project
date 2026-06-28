@@ -16,6 +16,9 @@ PROJECT_DIR = os.path.join(os.path.dirname(__file__), '..')
 CSV_DIR = os.path.join(PROJECT_DIR, 'results', 'csv')
 FIG_DIR = os.path.join(PROJECT_DIR, 'results', 'figures')
 
+# Limite de amostras considerado na comparacao abrangente (por ora, ate 140k)
+MAX_SAMPLES = 140000
+
 
 def setup() -> None:
     os.makedirs(FIG_DIR, exist_ok=True)
@@ -267,6 +270,9 @@ def plot_comprehensive_comparison() -> None:
     df = df[df['time_seconds'] != 'NA']
     df['time_seconds'] = df['time_seconds'].astype(float)
     df['samples'] = df['samples'].astype(int)
+
+    # Considerar apenas datasets ate MAX_SAMPLES por ora
+    df = df[df['samples'] <= MAX_SAMPLES]
 
     stats = df.groupby(['version', 'samples'])['time_seconds'].agg(['mean', 'std']).reset_index()
     
