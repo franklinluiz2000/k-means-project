@@ -16,6 +16,9 @@ PROJECT_DIR = os.path.join(os.path.dirname(__file__), '..')
 CSV_DIR = os.path.join(PROJECT_DIR, 'results', 'csv')
 FIG_DIR = os.path.join(PROJECT_DIR, 'results', 'figures')
 
+# Limite de amostras considerado na comparacao abrangente (por ora, ate 140k)
+MAX_SAMPLES = 140000
+
 
 def setup() -> None:
     os.makedirs(FIG_DIR, exist_ok=True)
@@ -268,14 +271,17 @@ def plot_comprehensive_comparison() -> None:
     df['time_seconds'] = df['time_seconds'].astype(float)
     df['samples'] = df['samples'].astype(int)
 
+    # Considerar apenas datasets ate MAX_SAMPLES por ora
+    df = df[df['samples'] <= MAX_SAMPLES]
+
     stats = df.groupby(['version', 'samples'])['time_seconds'].agg(['mean', 'std']).reset_index()
     
     # 1. Gráfico Absoluto (Tempo vs Samples)
     fig, ax = plt.subplots(figsize=(12, 7))
     versions = stats['version'].unique()
-    colors = {'sequential': '#3498db', 'cuda': '#e74c3c', 'mpi_openmp_64': '#2ecc71', 'openmp_gpu': '#9b59b6'}
+    colors = {'sequential': '#3498db', 'cuda': '#e74c3c', 'mpi_openmp_64': '#2ecc71', 'openmp_gpu': '#e67e22'}
     markers = {'sequential': 'o', 'cuda': 'D', 'mpi_openmp_64': 's', 'openmp_gpu': '^'}
-    labels = {'sequential': 'Sequencial (1 CPU)', 'cuda': 'CUDA (1 GPU V100)', 'mpi_openmp_64': 'MPI+OpenMP (64 CPUs)', 'openmp_gpu': 'OpenMP (1 GPU V100)'}
+    labels = {'sequential': 'Sequencial (1 CPU)', 'cuda': 'CUDA (1 GPU V100)', 'mpi_openmp_64': 'MPI+OpenMP (64 CPUs)', 'openmp_gpu': 'OpenMP-GPU (1 GPU V100)'}
     
     for v in versions:
         sub = stats[stats['version'] == v].sort_values('samples')
