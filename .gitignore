@@ -69,10 +69,6 @@ src/cuda/kmeans_cuda
 .venv/
 
 # SLURM outputs (gerados no cluster)
-results/raw/*.out
-results/csv/*.csv
-results/figures/*.png
-results/figures/*.pdf
 
 # Binarios compilados no root (temporarios de benchmark)
 kmeans_seq

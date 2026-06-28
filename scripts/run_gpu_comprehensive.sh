@@ -38,6 +38,16 @@ gcc src/1-sequential/kmeans_sequential.c -o kmeans_seq -lm -O3
 module load compilers/nvidia/cuda/12.6 2>/dev/null || true
 nvcc src/4-cuda/kmeans_cuda.cu -o kmeans_cuda -O3
 
+# OpenMP-GPU (offloading): nvc do NVHPC (cc70 = V100); fallback p/ gcc com offload nvptx.
+module load compilers/nvidia/nvhpc/24.11 2>/dev/null || module load compilers/nvidia/nvhpc 2>/dev/null || true
+HAS_OMP_GPU=1
+nvc -mp=gpu -gpu=cc70 src/3-openmp-gpu/kmeans_openmp_gpu.c -o kmeans_omp_gpu -lm -O3 2>/dev/null \
+    || gcc -fopenmp -foffload=nvptx-none src/3-openmp-gpu/kmeans_openmp_gpu.c -o kmeans_omp_gpu -lm -O3 2>/dev/null \
+    || HAS_OMP_GPU=0
+if [ "$HAS_OMP_GPU" -eq 0 ]; then
+    echo "AVISO: OpenMP-GPU nao compilou (nvc/offload indisponivel); sera pulado."
+fi
+
 for ds in "${DATASETS[@]}"; do
     SAMPLES=$(echo $ds | awk '{print $1}')
     FILE=$(echo $ds | awk '{print $2}')
@@ -54,6 +64,18 @@ for ds in "${DATASETS[@]}"; do
         rm -f "$TMPOUT"
     done
 
+    # OpenMP-GPU
+    if [ "$HAS_OMP_GPU" -eq 1 ]; then
+        for r in $(seq 1 $RUNS); do
+            TMPOUT=$(mktemp)
+            ./kmeans_omp_gpu "$SAMPLES" "$FILE" > "$TMPOUT" 2>&1
+            T=$(extract_time "$TMPOUT")
+            IT=$(extract_iters "$TMPOUT")
+            echo "openmp_gpu,$SAMPLES,$r,$T,$IT" >> "$CSV"
+            rm -f "$TMPOUT"
+        done
+    fi
+
     # CUDA
     for r in $(seq 1 $RUNS); do
         TMPOUT=$(mktemp)
@@ -65,5 +87,5 @@ for ds in "${DATASETS[@]}"; do
     done
 done
 
-rm -f kmeans_seq kmeans_cuda
+rm -f kmeans_seq kmeans_cuda kmeans_omp_gpu
 echo "Benchmark GPU finalizado."
