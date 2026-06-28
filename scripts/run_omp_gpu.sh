@@ -1,17 +1,17 @@
 #!/bin/bash
-#SBATCH --job-name=Kmeans_Comp_GPU
+#SBATCH --job-name=Kmeans_OMP_GPU
 #SBATCH --partition=gpu-8-v100
 #SBATCH --gpus-per-node=1
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
-#SBATCH --time=02:00:00
-#SBATCH --output=results/raw/comp_gpu_%j.out
+#SBATCH --time=01:00:00
+#SBATCH --output=results/raw/omp_gpu_%j.out
 
 cd "${SLURM_SUBMIT_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
 mkdir -p results/csv
 
-CSV="results/csv/gpu_comprehensive.csv"
+CSV="results/csv/omp_gpu.csv"
 echo "version,samples,run,time_seconds,iterations" > "$CSV"
 
 extract_time() {
@@ -34,10 +34,8 @@ DATASETS=(
 )
 
 echo "Compilando versões..."
-gcc src/1-sequential/kmeans_sequential.c -o kmeans_seq -lm -O3
-gcc src/3-openmp-gpu/kmeans_openmp_gpu.c -o kmeans_omp_gpu -lm -O3 -fopenmp -foffload=nvptx-none
-module load compilers/nvidia/cuda/12.6 2>/dev/null || true
-nvcc src/4-cuda/kmeans_cuda.cu -o kmeans_cuda -O3
+module load compilers/nvidia/nvhpc/24.11 2>/dev/null || true
+nvc -mp=gpu -gpu=cc70 -O3 src/3-openmp-gpu/kmeans_openmp_gpu.c -o kmeans_omp_gpu
 
 for ds in "${DATASETS[@]}"; do
     SAMPLES=$(echo $ds | awk '{print $1}')
@@ -45,17 +43,6 @@ for ds in "${DATASETS[@]}"; do
 
     echo "--- Testando Dataset: $SAMPLES amostras ($FILE) ---"
 
-    # Sequencial
-    for r in $(seq 1 $RUNS); do
-        TMPOUT=$(mktemp)
-        ./kmeans_seq "$SAMPLES" "$FILE" > "$TMPOUT" 2>&1
-        T=$(extract_time "$TMPOUT")
-        IT=$(extract_iters "$TMPOUT")
-        echo "sequential,$SAMPLES,$r,$T,$IT" >> "$CSV"
-        rm -f "$TMPOUT"
-    done
-
-    # OpenMP GPU
     for r in $(seq 1 $RUNS); do
         TMPOUT=$(mktemp)
         ./kmeans_omp_gpu "$SAMPLES" "$FILE" > "$TMPOUT" 2>&1
@@ -64,17 +51,7 @@ for ds in "${DATASETS[@]}"; do
         echo "openmp_gpu,$SAMPLES,$r,$T,$IT" >> "$CSV"
         rm -f "$TMPOUT"
     done
-
-    # CUDA
-    for r in $(seq 1 $RUNS); do
-        TMPOUT=$(mktemp)
-        ./kmeans_cuda "$SAMPLES" "$FILE" > "$TMPOUT" 2>&1
-        T=$(extract_time "$TMPOUT")
-        IT=$(extract_iters "$TMPOUT")
-        echo "cuda,$SAMPLES,$r,$T,$IT" >> "$CSV"
-        rm -f "$TMPOUT"
-    done
 done
 
-rm -f kmeans_seq kmeans_omp_gpu kmeans_cuda
-echo "Benchmark GPU finalizado."
+rm -f kmeans_omp_gpu
+echo "Benchmark OMP GPU finalizado."

@@ -8,6 +8,10 @@
 #define MAX_ITER 300
 #define TOLERANCE 1e-4
 
+#define MAX_K 10
+#define MAX_FEATURES 784
+__constant__ double d_centroids_const[MAX_K * MAX_FEATURES];
+
 // Macro para debug do CUDA
 #define CHECK_CUDA_ERROR(call) \
 do { \
@@ -48,46 +52,65 @@ __device__ double atomicAdd(double* address, double val)
 }
 #endif
 
-// Kernel 1: Atribuição de pontos aos clusters (Cálculo de Distância)
-__global__ void assign_clusters_kernel(const double *dataset, const double *centroids, int *assignments,
-                                       int num_samples, int num_features, int K) {
+__global__ void fused_kmeans_kernel(const double *dataset, 
+                                    double *new_centroids, int *cluster_counts,
+                                    int num_samples, int num_features, int K) {
+    extern __shared__ char smem[];
+    double* s_new_centroids = (double*)smem;
+    int* s_cluster_counts = (int*)&s_new_centroids[K * num_features];
+
+    // Inicializa a Memória Compartilhada
+    for (int i = threadIdx.x; i < K * num_features; i += blockDim.x) {
+        s_new_centroids[i] = 0.0;
+    }
+    if (threadIdx.x < K) {
+        s_cluster_counts[threadIdx.x] = 0;
+    }
+    __syncthreads();
+
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     
     if (i < num_samples) {
+        double dist[MAX_K];
+        for (int k = 0; k < K; k++) dist[k] = 0.0;
+
+        for (int j = 0; j < num_features; j++) {
+            double val = dataset[j * num_samples + i]; // Transposed coalesced read
+            for (int k = 0; k < K; k++) {
+                double diff = val - d_centroids_const[k * num_features + j];
+                dist[k] += diff * diff;
+            }
+        }
+
         double min_dist = DBL_MAX;
         int closest_cluster = 0;
-
         for (int k = 0; k < K; k++) {
-            double dist = 0.0;
-            for (int j = 0; j < num_features; j++) {
-                double diff = dataset[i * num_features + j] - centroids[k * num_features + j];
-                dist += diff * diff;
-            }
-
-            if (dist < min_dist) {
-                min_dist = dist;
+            if (dist[k] < min_dist) {
+                min_dist = dist[k];
                 closest_cluster = k;
             }
         }
-        assignments[i] = closest_cluster;
-    }
-}
-
-// Kernel 2: Acumulação para novos centroides usando atomicAdd
-__global__ void accumulate_centroids_kernel(const double *dataset, const int *assignments, 
-                                            double *new_centroids, int *cluster_counts,
-                                            int num_samples, int num_features) {
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    
-    if (i < num_samples) {
-        int cluster_id = assignments[i];
         
-        // Atualiza a contagem do cluster
-        atomicAdd(&cluster_counts[cluster_id], 1);
+        // Atualiza a contagem do cluster NA MEMORIA COMPARTILHADA
+        atomicAdd(&s_cluster_counts[closest_cluster], 1);
         
-        // Atualiza as dimensões somando os pontos
+        // Atualiza as dimensões somando os pontos NA MEMORIA COMPARTILHADA
         for (int j = 0; j < num_features; j++) {
-            atomicAdd(&new_centroids[cluster_id * num_features + j], dataset[i * num_features + j]);
+            atomicAdd(&s_new_centroids[closest_cluster * num_features + j], dataset[j * num_samples + i]);
+        }
+    }
+
+    __syncthreads();
+
+    // Redução: Escrita da Memória Compartilhada para a Global apenas 1 vez por bloco
+    for (int idx = threadIdx.x; idx < K * num_features; idx += blockDim.x) {
+        if (s_new_centroids[idx] != 0.0) {
+            atomicAdd(&new_centroids[idx], s_new_centroids[idx]);
+        }
+    }
+    if (threadIdx.x < K) {
+        if (s_cluster_counts[threadIdx.x] != 0) {
+            atomicAdd(&cluster_counts[threadIdx.x], s_cluster_counts[threadIdx.x]);
         }
     }
 }
@@ -140,6 +163,14 @@ int main(int argc, char **argv) {
     // Inicializa medição de performance
     double start_time = get_time_sec();
 
+    // Transposição do dataset na CPU para Coalesced Access perfeito na GPU
+    double *h_dataset_transposed = (double *)malloc(num_samples * num_features * sizeof(double));
+    for (int i = 0; i < num_samples; i++) {
+        for (int j = 0; j < num_features; j++) {
+            h_dataset_transposed[j * num_samples + i] = h_dataset[i * num_features + j];
+        }
+    }
+
     // Inicialização dos Centroides (usa os primeiros K pontos do dataset)
     initialize_centroids(h_dataset, h_centroids, K, num_features);
 
@@ -149,20 +180,16 @@ int main(int argc, char **argv) {
 
     // Alocação de Memória no Device (GPU)
     double *d_dataset;
-    double *d_centroids;
     double *d_new_centroids;
-    int *d_assignments;
     int *d_cluster_counts;
 
     CHECK_CUDA_ERROR(cudaMalloc((void **)&d_dataset, num_samples * num_features * sizeof(double)));
-    CHECK_CUDA_ERROR(cudaMalloc((void **)&d_centroids, K * num_features * sizeof(double)));
     CHECK_CUDA_ERROR(cudaMalloc((void **)&d_new_centroids, K * num_features * sizeof(double)));
-    CHECK_CUDA_ERROR(cudaMalloc((void **)&d_assignments, num_samples * sizeof(int)));
     CHECK_CUDA_ERROR(cudaMalloc((void **)&d_cluster_counts, K * sizeof(int)));
 
-    // Transfere o Dataset e Centroides Iniciais do Host para o Device
-    CHECK_CUDA_ERROR(cudaMemcpy(d_dataset, h_dataset, num_samples * num_features * sizeof(double), cudaMemcpyHostToDevice));
-    CHECK_CUDA_ERROR(cudaMemcpy(d_centroids, h_centroids, K * num_features * sizeof(double), cudaMemcpyHostToDevice));
+    // Transfere o Dataset Transposto para o Device e inicializa a Memória Constante
+    CHECK_CUDA_ERROR(cudaMemcpy(d_dataset, h_dataset_transposed, num_samples * num_features * sizeof(double), cudaMemcpyHostToDevice));
+    CHECK_CUDA_ERROR(cudaMemcpyToSymbol(d_centroids_const, h_centroids, K * num_features * sizeof(double)));
 
     int iter = 0;
     int converged = 0;
@@ -174,17 +201,16 @@ int main(int argc, char **argv) {
     // Loop Principal do K-means
     while (iter < MAX_ITER && !converged) {
         
-        // Passo A: Kernel de atribuição
-        assign_clusters_kernel<<<blocksPerGrid, threadsPerBlock>>>(d_dataset, d_centroids, d_assignments, num_samples, num_features, K);
-        CHECK_CUDA_ERROR(cudaGetLastError());
-        CHECK_CUDA_ERROR(cudaDeviceSynchronize()); // Espera o kernel finalizar para garantir integridade
-
-        // Passo B e C: Zera acumuladores no Device
+        // Zera acumuladores no Device antes da iteração
         CHECK_CUDA_ERROR(cudaMemset(d_new_centroids, 0, K * num_features * sizeof(double)));
         CHECK_CUDA_ERROR(cudaMemset(d_cluster_counts, 0, K * sizeof(int)));
 
-        // Kernel de acumulação (soma posições e contagem)
-        accumulate_centroids_kernel<<<blocksPerGrid, threadsPerBlock>>>(d_dataset, d_assignments, d_new_centroids, d_cluster_counts, num_samples, num_features);
+        // Configura tamanho da Shared Memory Dinâmica (10 * 784 * 8 bytes para centroids + 10 * 4 bytes para counts)
+        int shared_mem_size = (K * num_features * sizeof(double)) + (K * sizeof(int));
+        cudaFuncSetAttribute(fused_kmeans_kernel, cudaFuncAttributeMaxDynamicSharedMemorySize, shared_mem_size);
+
+        // Kernel unificado de atribuição e acumulação
+        fused_kmeans_kernel<<<blocksPerGrid, threadsPerBlock, shared_mem_size>>>(d_dataset, d_new_centroids, d_cluster_counts, num_samples, num_features, K);
         CHECK_CUDA_ERROR(cudaGetLastError());
         CHECK_CUDA_ERROR(cudaDeviceSynchronize());
 
@@ -209,8 +235,8 @@ int main(int argc, char **argv) {
             }
         }
 
-        // Envia os centroides atualizados de volta para a GPU para a próxima iteração
-        CHECK_CUDA_ERROR(cudaMemcpy(d_centroids, h_centroids, K * num_features * sizeof(double), cudaMemcpyHostToDevice));
+        // Envia os centroides atualizados de volta para a Memória Constante da GPU para a próxima iteração
+        CHECK_CUDA_ERROR(cudaMemcpyToSymbol(d_centroids_const, h_centroids, K * num_features * sizeof(double)));
 
         iter++;
         if (max_centroid_shift < TOLERANCE) {
@@ -231,8 +257,8 @@ int main(int argc, char **argv) {
     }
 
     // Liberação de Memória
-    free(h_dataset); free(h_centroids); free(h_new_centroids); free(h_cluster_counts);
-    cudaFree(d_dataset); cudaFree(d_centroids); cudaFree(d_new_centroids); cudaFree(d_assignments); cudaFree(d_cluster_counts);
+    free(h_dataset); free(h_dataset_transposed); free(h_centroids); free(h_new_centroids); free(h_cluster_counts);
+    cudaFree(d_dataset); cudaFree(d_new_centroids); cudaFree(d_cluster_counts);
 
     return EXIT_SUCCESS;
 }

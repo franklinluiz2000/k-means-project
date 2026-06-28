@@ -273,9 +273,9 @@ def plot_comprehensive_comparison() -> None:
     # 1. Gráfico Absoluto (Tempo vs Samples)
     fig, ax = plt.subplots(figsize=(12, 7))
     versions = stats['version'].unique()
-    colors = {'sequential': '#3498db', 'cuda': '#e74c3c', 'mpi_openmp_64': '#2ecc71'}
-    markers = {'sequential': 'o', 'cuda': 'D', 'mpi_openmp_64': 's'}
-    labels = {'sequential': 'Sequencial (1 CPU)', 'cuda': 'CUDA (1 GPU V100)', 'mpi_openmp_64': 'MPI+OpenMP (64 CPUs)'}
+    colors = {'sequential': '#3498db', 'cuda': '#e74c3c', 'mpi_openmp_64': '#2ecc71', 'openmp_gpu': '#9b59b6'}
+    markers = {'sequential': 'o', 'cuda': 'D', 'mpi_openmp_64': 's', 'openmp_gpu': '^'}
+    labels = {'sequential': 'Sequencial (1 CPU)', 'cuda': 'CUDA (1 GPU V100)', 'mpi_openmp_64': 'MPI+OpenMP (64 CPUs)', 'openmp_gpu': 'OpenMP (1 GPU V100)'}
     
     for v in versions:
         sub = stats[stats['version'] == v].sort_values('samples')
