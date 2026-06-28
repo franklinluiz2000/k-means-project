@@ -15,7 +15,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 
-MAX_SAMPLES = 140000
+MAX_SAMPLES = 560000
 
 BASE = os.path.dirname(__file__)
 CSV = os.path.join(BASE, "csv", "gpu_comprehensive.csv")
