@@ -1,14 +1,17 @@
 #!/bin/bash
 #SBATCH --job-name=Kmeans_MPI_OMP
 #SBATCH --partition=amd-512
-#SBATCH --nodes=4
-#SBATCH --ntasks-per-node=1
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=4
 #SBATCH --cpus-per-task=8
 #SBATCH --time=00:20:00
 #SBATCH --output=results/raw/mpi_openmp_%j.out
 
-# Parametros configuraveis via linha de comando:
-#   sbatch --nodes=2 --cpus-per-task=16 slurm/run_mpi_openmp.sh
+# Ajuste:
+#   --ntasks-per-node = numero de processos MPI
+#   --cpus-per-task   = numero de threads OpenMP por processo
+# Via linha de comando (sem editar o arquivo):
+#   sbatch --ntasks-per-node=8 --cpus-per-task=4 slurm/run_mpi_openmp.sh
 
 cd "${SLURM_SUBMIT_DIR:-.}"
 
@@ -30,6 +33,18 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-mpirun ./kmeans_mpi_omp
+# Variacao do tamanho do dataset (escalabilidade por tamanho de entrada).
+# Cada binario recebe: <num_amostras> <caminho_dataset>
+SIZES=(7000 14000 35000 70000 140000 280000 560000)
+FILES=(data/fashion_mnist_7k.bin data/fashion_mnist_14k.bin data/fashion_mnist_35k.bin \
+       data/fashion_mnist_pure.bin data/fashion_mnist_140k.bin data/fashion_mnist_280k.bin \
+       data/fashion_mnist_560k.bin)
+
+for i in "${!SIZES[@]}"; do
+    N=${SIZES[$i]}
+    DATA=${FILES[$i]}
+    echo "--- Dataset: $N amostras ($DATA) ---"
+    mpirun ./kmeans_mpi_omp "$N" "$DATA"
+done
 
 rm -f kmeans_mpi_omp

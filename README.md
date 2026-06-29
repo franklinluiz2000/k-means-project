@@ -36,26 +36,28 @@ k-means-project/
 │   ├── 2-paralell-mpi-openmp/kmeans_mpi_openmp.c  # [Daniel]
 │   ├── 3-openmp-gpu/kmeans_openmp_gpu.c           # [Raimundo]
 │   └── 4-cuda/kmeans_cuda.cu                      # [Luiz Gonzaga]
-├── scripts/                                        # [Luiz Gustavo]
+├── scripts/                                        # [Luiz Gustavo] — apenas Python
 │   ├── data_engineering.py      # Download e pré-processamento do Fashion MNIST
-│   ├── generate_datasets.py     # Gera datasets de 7k a 560k para escalabilidade
+│   ├── generate_datasets.py     # Gera datasets de 17.5k a 560k para escalabilidade
 │   ├── validate_data.py         # Valida integridade dos binários
-│   ├── run_benchmarks.sh        # Benchmark automatizado (5 repetições, CSV)
-│   ├── test_correctness.sh      # Valida paralelo == sequencial
-│   ├── run_strong_scaling.sh    # Escalabilidade forte (problema fixo)
-│   ├── run_weak_scaling.sh      # Escalabilidade fraca (dados proporcionais)
-│   └── analyze_results.py       # Gera gráficos com matplotlib
-├── slurm/                                          # [Luiz Gustavo]
+│   └── visualize_centroids.py   # Compara visualmente os centroides das versões
+├── slurm/                                          # [Luiz Gustavo] — runners SLURM
 │   ├── run_sequential.sh        # Job SLURM: sequencial
 │   ├── run_mpi_openmp.sh        # Job SLURM: MPI+OpenMP (parametrizável)
 │   ├── run_openmp_gpu.sh        # Job SLURM: OpenMP GPU
 │   ├── run_cuda.sh              # Job SLURM: CUDA
-│   └── run_all.sh               # Submete todos os jobs
+│   ├── run_strong_scaling.sh    # Escalabilidade forte (N fixo = 70k, varia proc×thread)
+│   └── run_weak_scaling.sh      # Escalabilidade fraca (carga fixa 17.5k/processo)
 ├── data/                        # Datasets binários (ignorado pelo git)
-└── results/
-    ├── raw/                     # Outputs do SLURM
-    ├── csv/                     # Dados processados
-    └── figures/                 # Gráficos gerados
+└── results/                                         # Análise e gráficos (Python)
+    ├── analyze_results.py       # Gráficos gerais (benchmark, comparações)
+    ├── plot_strong_scaling.py   # Gráficos de escalabilidade forte (strong/)
+    ├── plot_weak_scaling.py     # Gráficos de escalabilidade fraca (weak/)
+    ├── plot_overview.py         # Dashboard de análise geral das 4 versões (overview/)
+    ├── plot_gpu.py              # Gráficos específicos de GPU
+    ├── raw/                     # Outputs do SLURM e centroides .bin
+    ├── csv/                     # Dados processados (strong_scaling.csv, weak_scaling.csv, ...)
+    └── figures/                 # Gráficos gerados (strong/, weak/, overview/)
 ```
 
 ## Como Executar
@@ -72,16 +74,24 @@ python3 scripts/validate_data.py       # Valida integridade
 
 ```bash
 cd k-means-project
-sbatch scripts/run_benchmarks.sh       # Benchmark de todas as versões
-sbatch scripts/run_strong_scaling.sh   # Escalabilidade forte
-sbatch scripts/run_weak_scaling.sh     # Escalabilidade fraca
+# Uma execução por versão
+sbatch slurm/run_sequential.sh         # Sequencial (baseline)
+sbatch slurm/run_mpi_openmp.sh         # MPI + OpenMP (parametrizável)
+sbatch slurm/run_openmp_gpu.sh         # OpenMP GPU
+sbatch slurm/run_cuda.sh               # CUDA
+# Experimentos de escalabilidade (MPI + OpenMP)
+sbatch slurm/run_strong_scaling.sh     # Escalabilidade forte (N fixo = 70k)
+sbatch slurm/run_weak_scaling.sh       # Escalabilidade fraca (carga fixa/processo)
 squeue -u $USER                        # Acompanhar jobs
 ```
 
 ### 3. Gerar gráficos
 
 ```bash
-python3 scripts/analyze_results.py
+python3 results/analyze_results.py        # Gráficos gerais
+python3 results/plot_strong_scaling.py    # Escalabilidade forte  -> results/figures/strong/
+python3 results/plot_weak_scaling.py      # Escalabilidade fraca  -> results/figures/weak/
+python3 results/plot_overview.py          # Análise geral das 4 versões -> results/figures/overview/
 # Gráficos salvos em results/figures/
 ```
 
@@ -92,38 +102,3 @@ python3 scripts/analyze_results.py
 * Eficiência
 * Escalabilidade Forte e Fraca
 * Overhead de comunicação e transferência CPU-GPU
-
-## Escalabilidade Forte e Fraca
-
-Status de geração dos resultados de escalabilidade por versão. Marcado = resultado já gerado.
-
-| Versão | Escalabilidade Forte | Escalabilidade Fraca | Observação |
-|--------|:--------------------:|:--------------------:|------------|
-| 1 — Sequencial | ⬜ | ⬜ | Baseline (1 core) — serve de referência para speedup; não escala |
-| 2 — MPI + OpenMP | ⬜ | ⬜ | Estudo principal: varia nº de processos (MPI) e threads (OpenMP) |
-| 3 — OpenMP-GPU | ⬜ | ⬜ | Escalabilidade por tamanho de entrada; depende da implementação |
-| 4 — CUDA | ⬜ | ⬜ | Escalabilidade por tamanho de entrada |
-
-## Checklist para Entrega Final
-
-### Implementações
-- [x] Versão 1 — Sequencial (baseline)
-- [x] Versão 2 — MPI + OpenMP
-- [ ] Versão 3 — OpenMP-GPU (offloading)
-- [x] Versão 4 — CUDA
-
-### Experimentos (conforme enunciado)
-- [ ] Escalabilidade forte — MPI + OpenMP
-- [ ] Escalabilidade fraca — MPI + OpenMP
-- [ ] Diferentes tamanhos de entrada na v2, variando nº de processos (MPI) e nº de threads (OpenMP)
-- [ ] Comparação de desempenho OpenMP-GPU vs CUDA
-
-### Métricas (para cada experimento)
-- [ ] Tempo de execução
-- [ ] Speedup
-- [ ] Eficiência
-
-### Discussão exigida no relatório
-- [ ] Overhead de comunicação no MPI
-- [ ] Balanceamento de carga
-- [ ] Impacto da transferência de dados entre CPU e GPU

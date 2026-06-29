@@ -1,3 +1,23 @@
+"""
+Comparacao visual dos centroides do K-means (Sequencial vs MPI+OpenMP vs CUDA).
+
+Le os centroides finais gravados em binario (float64) por cada versao e:
+  1. compara numericamente as 3 versoes (diferenca maxima absoluta);
+  2. gera uma imagem com os 10 centroides (K=10) de cada versao como 28x28.
+
+COMO GERAR:
+  1. Rode cada versao do K-means de modo que ela grave os centroides finais em
+     results/raw/ (float64, K*784 valores):
+        results/raw/centroids_sequential.bin
+        results/raw/centroids_mpi.bin
+        results/raw/centroids_cuda.bin
+     (use os runners em slurm/, ex.: sbatch slurm/run_sequential.sh, etc.)
+  2. A partir da RAIZ do projeto, execute:
+        python scripts/visualize_centroids.py
+  3. Saida: results/figures/centroids_comparison.png
+
+Obs.: os caminhos sao relativos a raiz do projeto; execute o script de la.
+"""
 import numpy as np
 import matplotlib.pyplot as plt
 import os
@@ -23,7 +43,8 @@ def main():
     mpi_centroids = load_centroids(mpi_file)
 
     if seq_centroids is None or cuda_centroids is None or mpi_centroids is None:
-        print("Arquivos de centroides não encontrados. Execute o test_correctness.sh no cluster primeiro.")
+        print("Arquivos de centroides nao encontrados. Rode cada versao do K-means "
+              "para gerar results/raw/centroids_*.bin (veja o cabecalho deste arquivo).")
         return
 
     # Compara numericamente para garantir a precisão
